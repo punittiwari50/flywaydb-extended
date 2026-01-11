@@ -1,5 +1,11 @@
 # StatementInterceptor Guide
 
+> [!CAUTION]
+> **StatementInterceptor is NOT available via SPI in Flyway Community Edition.**
+> 
+> This is an internal Flyway API that requires enterprise hooks or direct internal access.
+> For Community Edition users, use **[AuditCallback](file:///c:/DEV/SOURCES/SOURCE_DIR/flyway-extended/flyway-extended-core/src/main/java/org/flywaydbextended/extension/AuditCallback.java)** instead.
+
 ## What is StatementInterceptor?
 
 `StatementInterceptor` is a powerful Flyway extension point that allows you to **intercept and monitor all SQL statements** executed by Flyway during migrations.
@@ -52,16 +58,21 @@
 
 ---
 
-## 🔧 Our Implementation: AuditStatementInterceptor
+## 🔧 Recommended Implementation: AuditCallback
+
+> [!IMPORTANT]
+> **For Flyway Community Edition, use `AuditCallback` instead of `StatementInterceptor`.**
+
+The `AuditCallback` class implements the `Callback` interface which is fully supported via SPI.
 
 ### Features
 
-✅ **Comprehensive Logging** - All SQL statements logged  
+✅ **Lifecycle Event Logging** - BEFORE/AFTER all operations  
 ✅ **Timestamped Events** - Know exactly when things happened  
 ✅ **Migration Tracking** - Track which migrations executed  
 ✅ **Configurable** - Enable/disable via system properties  
-✅ **File-Based Audit Log** - Persistent audit trail  
-✅ **Verbose Mode** - Optional console output  
+✅ **Console Output** - Audit logging to stdout  
+✅ **Verbose Mode** - Optional detailed output  
 
 ### What It Logs
 

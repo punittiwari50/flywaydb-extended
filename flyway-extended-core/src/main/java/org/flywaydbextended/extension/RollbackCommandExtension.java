@@ -107,4 +107,11 @@ public class RollbackCommandExtension implements CommandExtension {
             throw new FlywayException("Rollback failed: " + e.getMessage(), e);
         }
     }
+
+    /**
+     * Get description of this command extension.
+     */
+    public String getDescription() {
+        return "Rolls back migrations to a specific version or count";
+    }
 }

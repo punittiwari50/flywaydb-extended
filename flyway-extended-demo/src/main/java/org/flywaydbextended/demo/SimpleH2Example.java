@@ -58,9 +58,21 @@ public class SimpleH2Example {
             System.out.println();
 
             // ============================================================
-            // STEP 3: Enhance Schema History (One-Time Operation)
+            // STEP 3: Run Forward Migrations
             // ============================================================
-            System.out.println("🔧 Step 3: Enhancing schema history table...");
+            System.out.println("⬆️  Step 3: Running forward migrations...");
+            var migrateResult = flyway.migrate();
+            System.out.println("   ✓ Migrations executed: " + migrateResult.migrationsExecuted);
+            System.out.println("   ✓ Target version: " + migrateResult.targetSchemaVersion);
+
+            // Save migrate result
+            outputCallback.writeResult("MIGRATE", migrateResult);
+            System.out.println();
+
+            // ============================================================
+            // STEP 4: Enhance Schema History (One-Time Operation)
+            // ============================================================
+            System.out.println("🔧 Step 4: Enhancing schema history table...");
             try (Connection conn = flyway.getConfiguration().getDataSource().getConnection()) {
                 SchemaHistoryEnhancer enhancer = new SchemaHistoryEnhancer();
                 enhancer.enhanceSchemaHistory(conn, "admin");
@@ -70,18 +82,6 @@ public class SimpleH2Example {
             System.out.println("     - rollback_date (TIMESTAMP)");
             System.out.println("     - rollback_user (VARCHAR)");
             System.out.println("     - rollback_reason (VARCHAR)");
-            System.out.println();
-
-            // ============================================================
-            // STEP 4: Run Forward Migrations
-            // ============================================================
-            System.out.println("⬆️  Step 4: Running forward migrations...");
-            var migrateResult = flyway.migrate();
-            System.out.println("   ✓ Migrations executed: " + migrateResult.migrationsExecuted);
-            System.out.println("   ✓ Target version: " + migrateResult.targetSchemaVersion);
-
-            // Save migrate result
-            outputCallback.writeResult("MIGRATE", migrateResult);
             System.out.println();
 
             // ============================================================
@@ -233,11 +233,11 @@ public class SimpleH2Example {
         try (Connection conn = flyway.getConfiguration().getDataSource().getConnection();
                 Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(
-                        "SELECT version, description, rolled_back, rollback_date, " +
-                                "rollback_user, rollback_reason " +
-                                "FROM flyway_schema_history " +
-                                "WHERE type = 'SQL' " +
-                                "ORDER BY installed_rank")) {
+                        "SELECT \"version\", \"description\", \"rolled_back\", \"rollback_date\", " +
+                                "\"rollback_user\", \"rollback_reason\" " +
+                                "FROM \"flyway_schema_history\" " +
+                                "WHERE \"type\" = 'SQL' " +
+                                "ORDER BY \"installed_rank\"")) {
 
             while (rs.next()) {
                 String version = rs.getString("version");
@@ -270,9 +270,9 @@ public class SimpleH2Example {
         try (Connection conn = flyway.getConfiguration().getDataSource().getConnection();
                 Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(
-                        "SELECT enhancement_id, applied_at, applied_by, description " +
-                                "FROM flyway_rollback_metadata " +
-                                "ORDER BY applied_at")) {
+                        "SELECT ENHANCEMENT_ID, APPLIED_AT, APPLIED_BY, DESCRIPTION " +
+                                "FROM FLYWAY_ROLLBACK_METADATA " +
+                                "ORDER BY APPLIED_AT")) {
 
             while (rs.next()) {
                 String id = rs.getString("enhancement_id");

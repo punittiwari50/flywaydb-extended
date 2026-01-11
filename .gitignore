@@ -46,3 +46,7 @@ Thumbs.db
 *.zip
 *.tar.gz
 *.rar
+
+# Test and Audit Results
+test-results.json
+flyway-results/

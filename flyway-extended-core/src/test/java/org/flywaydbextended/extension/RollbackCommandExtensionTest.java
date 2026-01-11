@@ -122,6 +122,10 @@ class RollbackCommandExtensionTest {
 
         // When/Then: Should throw exception
         Map<String, String> configMap = new HashMap<>();
+        configMap.put("flyway.url", "jdbc:h2:mem:cmdtest;DB_CLOSE_DELAY=-1");
+        configMap.put("flyway.user", "sa");
+        configMap.put("flyway.password", "");
+
         assertThatThrownBy(() -> extension.handle("rollback", configMap,
                 Arrays.asList("-rollback.user=admin")))
                 .isInstanceOf(FlywayException.class)
