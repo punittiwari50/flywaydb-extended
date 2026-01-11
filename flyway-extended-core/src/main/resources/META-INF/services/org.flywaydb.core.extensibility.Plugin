@@ -4,6 +4,3 @@ org.flywaydbextended.extension.RollbackCommandExtension
 # Configuration Extensions
 org.flywaydbextended.config.RollbackConfigurationExtension
 org.flywaydbextended.reporting.ResultOutputConfiguration
-
-# Statement Interceptors
-org.flywaydbextended.extension.AuditStatementInterceptor
