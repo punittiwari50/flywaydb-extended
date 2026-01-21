@@ -1,5 +1,0 @@
-{
-  "version": "4",
-  "description": "Add JSON Migration Table",
-  "sql": "CREATE TABLE json_migration_test (id INT PRIMARY KEY, data VARCHAR(255))"
-}

@@ -1,6 +1,0 @@
-# Command Extensions
-org.flywaydbextended.extension.RollbackCommandExtension
-
-# Configuration Extensions
-org.flywaydbextended.config.RollbackConfigurationExtension
-org.flywaydbextended.reporting.ResultOutputConfiguration
