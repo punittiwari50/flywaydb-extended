@@ -1,0 +1,1 @@
+-- DROP VIEW test_table_summary;

@@ -4,10 +4,8 @@ A comprehensive rollback solution for Flyway Community Edition with audit tracki
 
 ## Features
 
-✅ **Custom Rollback Functionality** - Roll back migrations using undo scripts (U-prefixed files)  
-✅ **Audit Tracking** - Track rollback history in `flyway_schema_history` table  
-✅ **Result Output Persistence** - Save operation results to JSON/XML/CSV files  
-✅ **One-Time Schema Migration** - Safely add audit columns without duplication  
+✅ **Custom Rollback Functionality** - Roll back migrations using undo scripts (U-prefixed files)
+✅ **Audit Tracking** - Updates `flyway_schema_history` entries with `ROLLBACK` type
 ✅ **Configurable** - All settings via standard Flyway configuration  
 
 ## Quick Start
@@ -27,16 +25,35 @@ java -jar target\flyway-extended-1.0-SNAPSHOT.jar
 
 ## 🚀 Simple H2 Example (Recommended for First-Time Users)
 
-The easiest way to see all features in action:
+### Run with H2 (Default/In-Memory)
+```bash
+mvnw.cmd -pl flyway-extended-demo spring-boot:run -Dspring-boot.run.arguments="--spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1 --spring.datasource.username=sa --spring.datasource.password= --spring.datasource.driver-class-name=org.h2.Driver --spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
+```
+
+### Run with PostgreSQL Profile
+```bash
+mvnw.cmd -pl flyway-extended-demo spring-boot:run -Dspring-boot.run.profiles=postgresql
+```
+
+### Run with Oracle Profile
+```bash
+mvnw.cmd -pl flyway-extended-demo spring-boot:run -Dspring-boot.run.profiles=oracle
+```
+
+### Performing Rollback via CLI
+The demo application now supports rollback via command-line arguments:
 
 ```bash
-cd c:\DEV\SOURCES\SOURCE_DIR\flyway-extended
-mvnw.cmd clean compile
-mvnw.cmd exec:java -Dexec.mainClass="com.example.flywayextended.examples.SimpleH2Example"
+# Rollback last version (automatically after migration)
+mvnw.cmd -pl flyway-extended-demo spring-boot:run -Dspring-boot.run.profiles=postgresql -Dspring-boot.run.arguments="--rollback"
+
+# Rollback to specific version
+mvnw.cmd -pl flyway-extended-demo spring-boot:run -Dspring-boot.run.profiles=postgresql -Dspring-boot.run.arguments="--rollback version=1.0"
 ```
 
 **What it demonstrates:**
 - ✅ H2 in-memory database (no setup required)
+
 - ✅ Schema enhancement (one-time audit column addition)
 - ✅ Forward migrations (V1, V2)
 - ✅ Rollback operation (V2 → V1)
@@ -51,115 +68,103 @@ mvnw.cmd exec:java -Dexec.mainClass="com.example.flywayextended.examples.SimpleH
 
 ```
 flyway-extended/
-├── src/main/java/com/example/flywayextended/
-│   ├── rollback/
-│   │   ├── RollbackResult.java              # Result object for rollback operations
-│   │   ├── RollbackConfigurationExtension.java  # Configuration extension
-│   │   ├── RollbackMetadataTable.java       # Metadata table manager
-│   │   ├── SchemaHistoryEnhancer.java       # One-time schema enhancement
-│   │   └── RollbackService.java             # Core rollback service
-│   ├── output/
-│   │   ├── ResultOutputConfiguration.java   # Output configuration
-│   │   ├── ResultOutputWriter.java          # Multi-format output writer
-│   │   └── ResultOutputCallback.java        # Flyway callback for output
-│   └── examples/
-│       └── RollbackExample.java             # Complete working example
-├── src/main/resources/db/migration/
-│   ├── V1__create_users_table.sql           # Forward migration
-│   ├── V2__create_orders_table.sql          # Forward migration
-│   ├── U1__undo_create_users_table.sql      # Undo migration
-│   └── U2__undo_create_orders_table.sql     # Undo migration
-├── FLYWAY_EXTENSIONS_GUIDE.md               # Extension points guide
-├── IMPLEMENTATION_PLAN.md                   # Detailed implementation plan
-├── ENHANCED_CODE_EXAMPLES.md                # Complete code examples
-└── README.md                                # This file
+├── src/main/java/org/flywaydbextended/core/
+│   └── FlywayExtended.java                  # Extended Flyway class with rollback logic
+├── src/test/resources/db/migration/
+│   ├── V1__Init.sql                         # Forward migration
+│   ├── U1__Init.sql                         # Undo migration
+│   ├── ...                                  # Other migrations
+│   ├── beforeRollback.sql                   # Pre-rollback callback
+│   └── afterRollback.sql                    # Post-rollback callback
+├── flyway-extended-demo/                    # Demo application
+├── README.md                                # This file
+└── ...
 ```
 
 ## Components
 
-### Component 1: Core Rollback Infrastructure
-- `RollbackResult` - Captures rollback operation metadata
-- `RollbackConfigurationExtension` - Custom configuration parameters
-- `RollbackMetadataTable` - Tracks one-time schema enhancements
+### Core
+- **FlywayExtended**: Wrapper around standard `Flyway` instance providing extended capabilities like `rollback()`.
 
-### Component 2: Rollback Execution Service
-- `RollbackService` - Core service for executing rollbacks
-  - `rollback(targetVersion, user, reason)` - Roll back to specific version
-  - `rollbackLast(count, user, reason)` - Roll back last N migrations
+### key Features
+- **Smart Rollback**: Automatically detects the last successful version to rollback.
+- **Undo Scripts**: Looks for `U<version>__<description>.sql` matching the deployed version.
+- **Callbacks**: Supports `beforeRollback.sql` and `afterRollback.sql` hooks.
+- **State Management**: Updates `flyway_schema_history` to reflect `ROLLBACK` state.
 
-### Component 3: Schema History Enhancement
-- `SchemaHistoryEnhancer` - Adds 4 audit columns to `flyway_schema_history`:
-  - `rolled_back` (BOOLEAN) - Was this migration rolled back?
-  - `rollback_date` (TIMESTAMP) - When was it rolled back?
-  - `rollback_user` (VARCHAR) - Who performed the rollback?
-  - `rollback_reason` (VARCHAR) - Why was it rolled back?
-
-### Component 4: ResultSet Output Persistence
-- `ResultOutputConfiguration` - Configure output saving
-- `ResultOutputWriter` - Write results to JSON/XML/CSV
-- `ResultOutputCallback` - Intercept Flyway operations
 
 ## Usage
 
 ### Basic Rollback
 
 ```java
-// Configure Flyway
+import org.flywaydb.core.Flyway;
+import org.flywaydbextended.core.FlywayExtended;
+
+// 1. Configure standard Flyway
 Flyway flyway = Flyway.configure()
     .dataSource("jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1", "sa", "")
     .locations("classpath:db/migration")
     .load();
 
-// Enhance schema history (one-time)
-try (Connection conn = dataSource.getConnection()) {
-    SchemaHistoryEnhancer enhancer = new SchemaHistoryEnhancer();
-    enhancer.enhanceSchemaHistory(conn, "admin");
-}
+// 2. Initialize FlywayExtended
+FlywayExtended flywayExtended = new FlywayExtended(flyway);
 
-// Perform rollback
-RollbackService rollbackService = new RollbackService(flyway, dataSource);
-RollbackResult result = rollbackService.rollback(
-    "1.0",           // Target version
-    "admin",         // User
-    "Bug in v2.0"    // Reason
-);
+// 3. Perform Rollback
+// Rollback the last successful version (e.g. V2 -> V1)
+flywayExtended.rollback();
 
-// Check result
-System.out.println("Success: " + result.success);
-System.out.println("Rolled back: " + result.migrationsRolledBack + " migrations");
+// OR Rollback to a specific target version (rolling back ONLY that version logic)
+// Note: This command rolls back the targeted version, executing its U script.
+flywayExtended.rollback("1.2");
 ```
+
+### Callbacks
+You can include `beforeRollback.sql` and `afterRollback.sql` in your migration locations. These will be executed before and after the rollback script respectively.
+
 
 ### Configuration
 
-Create `flyway.conf`:
+The Rollback command leverages standard Flyway configuration.
 
 ```properties
-# Database connection
+# standard flyway configuration
 flyway.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
 flyway.user=sa
 flyway.password=
-
-# Migration locations
 flyway.locations=classpath:db/migration
-
-# Result output configuration
-flyway.output.saveResults=true
-flyway.output.format=JSON
-flyway.output.location=./flyway-results/operations.json
-flyway.output.includeRollback=true
-
-# Rollback configuration
-flyway.rollback.enabled=true
-flyway.rollback.user=admin
 ```
+
+**Note**: The rollback command uses the same data source and locations as the configured Flyway instance.
+
+## Database Configuration Examples
+
+### PostgreSQL
+```properties
+flyway.url=jdbc:postgresql://localhost:5432/postgres
+flyway.user=postgres
+flyway.password=postgres
+flyway.locations=classpath:db/migration/postgresql
+```
+
+### Oracle
+```properties
+flyway.url=jdbc:oracle:thin:@localhost:1521:XE
+flyway.user=system
+flyway.password=mysecretpassword
+flyway.locations=classpath:db/migration/oracle
+```
+
 
 ## Migration File Naming
 
 - **Forward migrations**: `V{version}__{description}.sql`
   - Example: `V1__create_users_table.sql`
   
-- **Undo migrations**: `U{version}__undo_{description}.sql`
-  - Example: `U1__undo_create_users_table.sql`
+- **Undo migrations**: `U{version}__{description}.sql` (Same description as V script)
+  - Example: `U1__create_users_table.sql`
+  - Note: The description part matches the migration description stored in history.
+
 
 ## Database Schema
 
@@ -176,7 +181,6 @@ After enhancement, `flyway_schema_history` table includes:
 
 - **[FLYWAY_EXTENSIONS_GUIDE.md](FLYWAY_EXTENSIONS_GUIDE.md)** - Explains all 8 Flyway extension points
 - **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** - Detailed implementation plan and architecture
-- **[ENHANCED_CODE_EXAMPLES.md](ENHANCED_CODE_EXAMPLES.md)** - Complete code examples with explanations
 - **[SIMPLE_H2_EXAMPLE.md](SIMPLE_H2_EXAMPLE.md)** - Simple H2 database example (recommended start)
 - **[SQL_OUTPUT_LOGGING_GUIDE.md](SQL_OUTPUT_LOGGING_GUIDE.md)** - ⭐ **How to log SQL for existing & custom commands**
 - **[COMMAND_EXTENSION_GUIDE.md](COMMAND_EXTENSION_GUIDE.md)** - ⭐ **Add custom commands to Flyway CLI**

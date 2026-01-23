@@ -1,0 +1,1 @@
+CREATE TABLE logs (msg VARCHAR(100));
