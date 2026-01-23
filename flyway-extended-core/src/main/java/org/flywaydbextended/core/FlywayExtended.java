@@ -20,9 +20,12 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import org.flywaydb.core.api.configuration.ClassicConfiguration;
 
 public class FlywayExtended {
     private static final Logger LOGGER = Logger.getLogger(FlywayExtended.class.getName());
+    private static final String DEFAULT_UNDO_PREFIX = "U";
+
     private final Flyway flyway;
 
     public FlywayExtended(Flyway flyway) {
@@ -194,20 +197,26 @@ public class FlywayExtended {
     }
 
     // --- Undo Configuration ---
-    private String undoSqlMigrationPrefix = "U";
-    private String undoSqlMigrationSeparator = "__";
-    private String undoSqlMigrationSuffix = ".sql";
 
     public void setUndoSqlMigrationPrefix(String undoSqlMigrationPrefix) {
-        this.undoSqlMigrationPrefix = undoSqlMigrationPrefix;
+        Configuration config = flyway.getConfiguration();
+        if (config instanceof ClassicConfiguration) {
+            ((ClassicConfiguration) config).setUndoSqlMigrationPrefix(undoSqlMigrationPrefix);
+        }
     }
 
     public void setUndoSqlMigrationSeparator(String undoSqlMigrationSeparator) {
-        this.undoSqlMigrationSeparator = undoSqlMigrationSeparator;
+        Configuration config = flyway.getConfiguration();
+        if (config instanceof ClassicConfiguration) {
+            ((ClassicConfiguration) config).setSqlMigrationSeparator(undoSqlMigrationSeparator);
+        }
     }
 
     public void setUndoSqlMigrationSuffix(String undoSqlMigrationSuffix) {
-        this.undoSqlMigrationSuffix = undoSqlMigrationSuffix;
+        Configuration config = flyway.getConfiguration();
+        if (config instanceof ClassicConfiguration) {
+            ((ClassicConfiguration) config).setSqlMigrationSuffixes(undoSqlMigrationSuffix);
+        }
     }
 
     // --- Inner Class: UndoSqlScriptExecutor ---
@@ -263,8 +272,10 @@ public class FlywayExtended {
 
     private void executeScript(Connection connection, Configuration config, String scriptName, boolean required)
             throws IOException, SQLException {
+        String separator = config.getSqlMigrationSeparator();
+
         // Validate name structure against Separator (basic check)
-        if (!scriptName.contains(undoSqlMigrationSeparator) && !scriptName.startsWith("before")
+        if (!scriptName.contains(separator) && !scriptName.startsWith("before")
                 && !scriptName.startsWith("after")) {
             // In a strict mode we might throw, but for flexible lookup we proceed.
         }
@@ -330,7 +341,12 @@ public class FlywayExtended {
         if (originalScriptName.startsWith(originalPrefix)) {
             baseName = originalScriptName.substring(originalPrefix.length());
         }
-        return undoSqlMigrationPrefix + baseName;
+
+        String prefix = config.getUndoSqlMigrationPrefix();
+        if (prefix == null)
+            prefix = DEFAULT_UNDO_PREFIX;
+
+        return prefix + baseName;
     }
 
     private String findScriptContent(Configuration config, String scriptName) throws IOException {
