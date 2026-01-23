@@ -22,9 +22,10 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.flywaydb.core.api.configuration.ClassicConfiguration;
 
+import org.flywaydbextended.core.resolver.UndoMigrationResolver;
+
 public class FlywayExtended {
     private static final Logger LOGGER = Logger.getLogger(FlywayExtended.class.getName());
-    private static final String DEFAULT_UNDO_PREFIX = "U";
 
     private final Flyway flyway;
 
@@ -129,7 +130,47 @@ public class FlywayExtended {
         LOGGER.info(
                 "Rolling back version: " + migrationInfo.getVersion() + " (Script: " + migrationInfo.getScript() + ")");
 
-        String undoScriptName = resolveUndoScriptName(config, migrationInfo.getScript());
+        // 2. Execute Undo Script
+        // We need to resolve the undo script explicitly to get its name for resolving
+        // related callbacks if needed,
+        // but here we just pass the ORIGINAL/UNDO script name to executeScript.
+        // Wait, executeScript expects the scriptName to look up.
+        // And we need the resolved name "U1__..." to look up.
+        // But resolveUndoScriptName method is gone.
+        // Usage pattern in executeScript is: resolver.resolveUndoScript(scriptName)
+        // IF scriptName is "U1__...", resolver.resolveUndoScript("U1__...") will fail
+        // if it expects "V1__..."
+        // The newly created resolver.resolveUndoScript(original) returns CONTENT.
+
+        // RE-EVALUATION:
+        // My design of resolveUndoScript returns CONTENT.
+        // But executeScript calls resolveUndoScript to get content.
+        // However, I also need the Name for before/after scripts:
+        // "beforeRollback__U1__...".
+        // The resolver needs to provide the NAME too or I need to calculating it here.
+        //
+        // Let's adjust usage.
+        // The undoScriptName used here is just a string: U1__Initial.sql
+        // I need to constructing it.
+        // The resolver encapsulated logic "V1 -> U1".
+        // Maybe I should expose that?
+        // OR executeScript should take the content directly?
+        // Refactoring executeScript is risky.
+
+        // Let's modify UndoMigrationResolver to have `resolveUndoScriptName` as public
+        // too, or splitting it.
+        // For now, I will modify the resolver to expose calculateUndoScriptName.
+
+        // Wait, I am inside a multi-replace. I should probably ABORT and fix the
+        // Resolver first.
+        // But I can't abort mid-call easily.
+        // I will finish this replacement assuming I will update Resolver next.
+        //
+        // Let's assume one method: resolver.resolveUndoScriptName(originalScriptName)
+        // And executeScript uses it.
+
+        UndoMigrationResolver resolver = new UndoMigrationResolver(config);
+        String undoScriptName = resolver.resolveUndoScriptName(migrationInfo.getScript());
 
         // Use pattern: beforeRollback__U1__Initial_Schema.sql
         String beforeScriptName = "beforeRollback__" + undoScriptName;
@@ -272,15 +313,10 @@ public class FlywayExtended {
 
     private void executeScript(Connection connection, Configuration config, String scriptName, boolean required)
             throws IOException, SQLException {
-        String separator = config.getSqlMigrationSeparator();
+        // Initialize Resolver
+        UndoMigrationResolver resolver = new UndoMigrationResolver(config);
+        String sql = resolver.resolveResource(scriptName);
 
-        // Validate name structure against Separator (basic check)
-        if (!scriptName.contains(separator) && !scriptName.startsWith("before")
-                && !scriptName.startsWith("after")) {
-            // In a strict mode we might throw, but for flexible lookup we proceed.
-        }
-
-        String sql = findScriptContent(config, scriptName);
         if (sql == null) {
             if (required) {
                 throw new RuntimeException("Script not found: " + scriptName);
@@ -332,46 +368,6 @@ public class FlywayExtended {
                     remaining = remaining.substring(0, remaining.length() - 1);
                 executor.execute(connection, remaining);
             }
-        }
-    }
-
-    private String resolveUndoScriptName(Configuration config, String originalScriptName) {
-        String originalPrefix = config.getSqlMigrationPrefix();
-        String baseName = originalScriptName;
-        if (originalScriptName.startsWith(originalPrefix)) {
-            baseName = originalScriptName.substring(originalPrefix.length());
-        }
-
-        String prefix = config.getUndoSqlMigrationPrefix();
-        if (prefix == null)
-            prefix = DEFAULT_UNDO_PREFIX;
-
-        return prefix + baseName;
-    }
-
-    private String findScriptContent(Configuration config, String scriptName) throws IOException {
-        for (Location location : config.getLocations()) {
-            if (location.isClassPath()) {
-                String path = location.getPath();
-                String resourcePath = path + "/" + scriptName;
-                InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath);
-                if (is != null) {
-                    return readInputStream(is);
-                }
-            } else if (location.isFileSystem()) {
-                String path = location.getPath();
-                File file = new File(path, scriptName);
-                if (file.exists()) {
-                    return readInputStream(new FileInputStream(file));
-                }
-            }
-        }
-        return null;
-    }
-
-    private String readInputStream(InputStream is) throws IOException {
-        try (BufferedReader buffer = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            return buffer.lines().collect(Collectors.joining("\n"));
         }
     }
 
