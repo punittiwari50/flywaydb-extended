@@ -1,11 +1,17 @@
 package org.flywaydbextended.demo;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.stream.Stream;
 
 import org.flywaydb.core.api.configuration.ClassicConfiguration;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
+import org.flywaydb.core.api.resolver.MigrationResolver.Context;
+import org.flywaydbextended.core.ExtendedConfiguration;
+
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.util.ReflectionUtils;
 
 @SpringBootApplication
@@ -16,15 +22,15 @@ public class DemoApplication implements org.springframework.boot.CommandLineRunn
     }
 
     @org.springframework.context.annotation.Bean
-    public org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy flywayMigrationStrategy() {
-        return flyway -> {
-            // Do nothing on startup to prevent crash on corrupted history.
-            // We handle migration manually in run().
-        };
+    public org.flywaydb.core.Flyway flyway(javax.sql.DataSource dataSource) {
+        return org.flywaydb.core.Flyway.configure()
+                .dataSource(dataSource)
+                .load();
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
-    private org.flywaydb.core.Flyway flyway;
+    // Removed autowired Flyway field to avoid circular dependency
+    // @org.springframework.beans.factory.annotation.Autowired
+    // private org.flywaydb.core.Flyway flyway;
 
     @org.springframework.beans.factory.annotation.Autowired
     private javax.sql.DataSource dataSource;
@@ -65,7 +71,7 @@ public class DemoApplication implements org.springframework.boot.CommandLineRunn
     @Override
     public void run(String... args) throws Exception {
         System.out.println("Flyway Extended Demo Application started!");
-
+        Arrays.asList(args).forEach(System.out::println);
         boolean rollback = false;
         boolean clean = false;
         String targetVersion = null;
@@ -83,6 +89,15 @@ public class DemoApplication implements org.springframework.boot.CommandLineRunn
             }
         }
 
+        String dbProfile = System.getProperty("spring.profiles.active", "postgres");
+
+        String locations = "classpath:db/migration/common";
+        if ("oracle".equals(dbProfile)) {
+            locations += ",classpath:db/migration/oracle";
+        } else if ("postgres".equals(dbProfile)) {
+            locations += ",classpath:db/migration/postgres";
+        }
+
         if (clean) {
             manualClean();
             System.out.println("Manual Clean complete.");
@@ -90,9 +105,6 @@ public class DemoApplication implements org.springframework.boot.CommandLineRunn
 
         if (rollback) {
             System.out.println("Executing Rollback...");
-            org.flywaydbextended.core.FlywayExtended flywayExtended = new org.flywaydbextended.core.FlywayExtended(
-                    flyway);
-
             String undoPrefix = env.getProperty("flyway.undoPrefix", "U");
             String undoSeparator = env.getProperty("flyway.undoSeparator", "__");
             String undoSuffix = env.getProperty("flyway.undoSuffix", ".sql");
@@ -102,22 +114,29 @@ public class DemoApplication implements org.springframework.boot.CommandLineRunn
             System.out.println("  Separator: " + undoSeparator);
             System.out.println("  Suffix: " + undoSuffix);
 
-            flywayExtended.setUndoSqlMigrationPrefix(undoPrefix);
-            flywayExtended.setUndoSqlMigrationSeparator(undoSeparator);
-            flywayExtended.setUndoSqlMigrationSuffix(undoSuffix);
+            FluentConfiguration fluentConfiguration = new FluentConfiguration();
+            fluentConfiguration.dataSource(dataSource)
+                    .locations(locations.split(","))
+                    .baselineOnMigrate(true)
+                    .load();
+            fluentConfiguration.sqlMigrationPrefix("U");
+            ExtendedConfiguration extendedConfiguration = new ExtendedConfiguration(fluentConfiguration);
 
-            if (targetVersion != null) {
-                flywayExtended.rollback(targetVersion);
-            } else {
-                // Default to rollback to base (0), ensuring typical undo-all behavior for demo
-                flywayExtended.rollback("0");
-            }
+            extendedConfiguration.setUndoSqlMigrationPrefix(undoPrefix);
+            org.flywaydb.core.Flyway flywayInstance = new org.flywaydb.core.Flyway(extendedConfiguration);
+            flywayInstance.migrate();
+
         } else if (!clean) {
             // Default behavior: Migrate
             if (!rollback) {
                 System.out.println("Executing Migration...");
                 try {
-                    flyway.migrate();
+                    org.flywaydb.core.Flyway flywayInstance = org.flywaydb.core.Flyway.configure()
+                            .dataSource(dataSource)
+                            .locations(locations.split(","))
+                            .baselineOnMigrate(true)
+                            .load();
+                    flywayInstance.baseline();
                 } catch (Exception e) {
                     // Check for specific Enum error caused by legacy ROLLBACK rows
                     if (e.toString().contains("No enum constant") && e.toString().contains("ROLLBACK")) {
@@ -125,7 +144,9 @@ public class DemoApplication implements org.springframework.boot.CommandLineRunn
                                 .println("Detected corrupted schema history (legacy ROLLBACK type). Auto-cleaning...");
                         manualClean();
                         System.out.println("Clean complete. Retrying Migration...");
-                        flyway.migrate();
+                        org.flywaydb.core.Flyway retryFlyway = org.flywaydb.core.Flyway.configure()
+                                .dataSource(dataSource).load();
+                        retryFlyway.migrate();
                     } else {
                         throw e;
                     }
@@ -134,7 +155,7 @@ public class DemoApplication implements org.springframework.boot.CommandLineRunn
         }
     }
 
-    @org.springframework.context.annotation.Bean
+    // @org.springframework.context.annotation.Bean
     public static org.springframework.boot.autoconfigure.flyway.FlywayConfigurationCustomizer flywayConfigurationCustomizer(
             javax.sql.DataSource dataSource) {
         return configuration -> {

@@ -15,12 +15,10 @@ public class ExtendedConfiguration extends ClassicConfiguration {
         super(configuration);
     }
 
-    @Override
     public String getUndoSqlMigrationPrefix() {
         return undoSqlMigrationPrefix;
     }
 
-    @Override
     public void setUndoSqlMigrationPrefix(String undoSqlMigrationPrefix) {
         this.undoSqlMigrationPrefix = undoSqlMigrationPrefix;
     }
