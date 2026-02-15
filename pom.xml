@@ -1,26 +1,45 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <parent>
-    <groupId>org.flywaydb</groupId>
-    <artifactId>flyway-parent</artifactId>
-    <version>12.0.0</version>
-    <relativePath>../flyway/pom.xml</relativePath> <!-- Assuming parallel structure or adjust if needed -->
-  </parent>
+  <groupId>org.flywaydbextended</groupId>
   <artifactId>flyway-extended</artifactId>
-  <packaging>jar</packaging>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
   <name>flyway-extended</name>
+
+  <properties>
+    <flyway.version>12.0.0</flyway.version>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+  </properties>
+
+  <modules>
+    <module>flyway-extended-core</module>
+    <module>flyway-extended-demo</module>
+  </modules>
   
   <dependencies>
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
-      <version>${project.version}</version>
+      <version>${flyway.version}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
+        <version>1.18.30</version>
+        <scope>provided</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.15.0</version>
+      </plugin>
+    </plugins>
+  </build>
 </project>

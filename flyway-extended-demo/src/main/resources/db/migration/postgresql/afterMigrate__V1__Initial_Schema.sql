@@ -1,16 +1,26 @@
-DO $$
-BEGIN
-    RAISE NOTICE 'DB: Executing AFTER V1 migration. Verifying V1 Schema...';
-
-    -- Verify V1: test_table must exist
-    IF NOT EXISTS (
-        SELECT 1 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'test_table'
-    ) THEN
-        RAISE EXCEPTION 'Verification FAILED: test_table (from V1) is missing!';
-    END IF;
-
-    RAISE NOTICE 'Verification PASSED: V1 Schema is correct.';
-END $$;
+---
+-- ========================LICENSE_START=================================
+-- flyway-extended-demo
+-- ========================================================================
+-- Copyright (C) 2010 - 2026 Red Gate Software Ltd
+-- ========================================================================
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+-- 
+--      http://www.apache.org/licenses/LICENSE-2.0
+-- 
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+-- =========================LICENSE_END==================================
+---
+-- Callback query as requested
+SELECT 
+    current_database() AS databasename,
+    current_schema() AS schemaname,
+    current_user AS username,
+    'afterMigrate__V1__Initial_Schema' AS flyway_callback,
+    CURRENT_TIMESTAMP AS currenttimestamp from dual;

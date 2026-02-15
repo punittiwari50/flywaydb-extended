@@ -1,18 +1,30 @@
+/*-
+ * ========================LICENSE_START=================================
+ * flyway-extended-demo
+ * ========================================================================
+ * Copyright (C) 2010 - 2026 Red Gate Software Ltd
+ * ========================================================================
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * =========================LICENSE_END==================================
+ */
 package org.flywaydbextended.demo;
 
-import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.stream.Stream;
 
-import org.flywaydb.core.api.configuration.ClassicConfiguration;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
-import org.flywaydb.core.api.resolver.MigrationResolver.Context;
-import org.flywaydbextended.core.ExtendedConfiguration;
-
+import org.flywaydbextended.core.command.RollbackCommandExtension;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
-import org.springframework.util.ReflectionUtils;
 
 @SpringBootApplication
 public class DemoApplication implements org.springframework.boot.CommandLineRunner {
@@ -114,17 +126,24 @@ public class DemoApplication implements org.springframework.boot.CommandLineRunn
             System.out.println("  Separator: " + undoSeparator);
             System.out.println("  Suffix: " + undoSuffix);
 
-            FluentConfiguration fluentConfiguration = new FluentConfiguration();
-            fluentConfiguration.dataSource(dataSource)
+            FluentConfiguration fluentConfiguration = org.flywaydb.core.Flyway.configure()
+                    .dataSource(dataSource)
                     .locations(locations.split(","))
-                    .baselineOnMigrate(true)
-                    .load();
-            fluentConfiguration.sqlMigrationPrefix("U");
-            ExtendedConfiguration extendedConfiguration = new ExtendedConfiguration(fluentConfiguration);
+                    .baselineOnMigrate(true);
 
-            extendedConfiguration.setUndoSqlMigrationPrefix(undoPrefix);
-            org.flywaydb.core.Flyway flywayInstance = new org.flywaydb.core.Flyway(extendedConfiguration);
-            flywayInstance.migrate();
+            if (targetVersion != null) {
+                fluentConfiguration.target(targetVersion);
+            }
+
+            // Using RollbackCommandExtension directly as per functional tests
+            RollbackCommandExtension extension = new RollbackCommandExtension();
+            try {
+                extension.handle(fluentConfiguration, java.util.Collections.emptyList());
+                System.out.println("Rollback/Undo executed successfully.");
+            } catch (org.flywaydb.core.api.FlywayException e) {
+                System.err.println("Rollback failed: " + e.getMessage());
+                throw e;
+            }
 
         } else if (!clean) {
             // Default behavior: Migrate

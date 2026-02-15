@@ -13,13 +13,16 @@ buildNumber.properties
 # IDE - Eclipse
 .classpath
 .project
-.settings/
 .factorypath
+.settings/
 
 # IDE - IntelliJ
 .idea/
 *.iml
 *.iws
+
+# IDE - VS Code
+.vscode/
 
 # IDE - NetBeans
 /nbproject/private/
