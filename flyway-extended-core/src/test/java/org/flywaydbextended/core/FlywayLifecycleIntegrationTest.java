@@ -81,7 +81,7 @@ class FlywayLifecycleIntegrationTest {
                 FluentConfiguration undoConfig = Flyway.configure()
                                 .dataSource(TestConstants.JDBC_URL, TestConstants.DB_USER, TestConstants.DB_PASSWORD)
                                 .locations("filesystem:" + devDir.toAbsolutePath())
-                                .target("24")
+                                .target("25")
                                 .cleanDisabled(false)
                                 .validateOnMigrate(false);
 
@@ -182,7 +182,7 @@ class FlywayLifecycleIntegrationTest {
                 RollbackCommandExtension undoExt = new RollbackCommandExtension();
                 FluentConfiguration undoConfig = Flyway.configure()
                                 .configuration(config)
-                                .target("24");
+                                .target("25");
 
                 MigrateResult undoResult = undoExt.handle(undoConfig, Collections.emptyList());
                 assertEquals(1, undoResult.migrationsExecuted);

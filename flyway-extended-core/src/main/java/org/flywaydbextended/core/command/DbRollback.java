@@ -220,20 +220,7 @@ public class DbRollback {
 
 		for (AppliedMigration applied : reverseApplied) {
 			MigrationVersion version = applied.getVersion();
-			if (version == null) {
-				continue;
-			}
-
-			if (applied.getType().isUndo()) {
-				undoneVersions.add(version);
-				continue;
-			}
-
-			if (targetVersion != null && version.equals(targetVersion)) {
-				break;
-			}
-
-			if (undoneVersions.contains(version)) {
+			if (version == null || targetVersion == null || !version.equals(targetVersion)) {
 				continue;
 			}
 

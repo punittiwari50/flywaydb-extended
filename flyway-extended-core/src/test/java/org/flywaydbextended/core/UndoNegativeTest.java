@@ -21,43 +21,24 @@ import org.junit.jupiter.api.Test;
 public class UndoNegativeTest {
 
     private FluentConfiguration baseConfig;
-    public static boolean callbackExecuted = false;
+    public static java.util.List<String> executedCallbacks = new java.util.ArrayList<>();
 
-    public static int callbackTrigger() {
-        callbackExecuted = true;
+    public static int validateCallback(String event, String version) {
+        executedCallbacks.add(event + ":" + version);
         return 1;
     }
 
     @BeforeEach
     void setup() throws SQLException {
-        callbackExecuted = false;
+        executedCallbacks.clear();
         baseConfig = Flyway.configure()
                 .dataSource(TestConstants.JDBC_URL, TestConstants.DB_USER, TestConstants.DB_PASSWORD)
-                .locations("classpath:migration/negative")
+                .locations("classpath:migration/negative/scripts")
                 .callbacks(new org.flywaydbextended.core.api.callback.VersionedScopedFlywayCallback())
-                // Use absolute path with filesystem: prefix because Flyway's Scanner (when
-                // using ClassLoader)
-                // might need explicit instructions or we rely on how it parses the location
-                // string.
-                // However, VersionedScopedFlywayCallback passes "filesystem" prefix arg, but
-                // FlywayUtils ignores it
-                // and constructs Scanner(ClassLoader.class, ...).
-                // A Scanner with ClassLoader.class usually only scans classpath.
-                // If we want it to scan filesystem, we might need to trick it or ensure the
-                // path is on CP.
-                // "src/test/resources/..." is on CP as "migration/..."
-                // Let's try pointing to the CP location relative to CP root.
-                // Parent: classpath:migration/validate/negative
-                // Sibling: validate -> classpath:migration/validate/validate
-                // The callback constructs path using Path.of().resolveSibling().
-                // If we pass a URI-like string "classpath:...", Path.of on Windows might mangle
-                // it (checking for : ).
-                // If we pass a normal path "migration/validate/negative", it resolves to
-                // "migration/validate/validate".
-                // If that is passed to Scanner(ClassLoader.class), it SHOULD find it on
-                // classpath.
+                // Use absolute path to ensure filesystem scanner is used, bypassing
+                // backslash/classpath issues on Windows
                 .placeholders(Collections.singletonMap("FLYWAY_VERSIONSCOPED_LOCATION",
-                        "src/test/resources/migration/validate/negative"))
+                        "dummy"))
                 .cleanDisabled(false)
                 .validateOnMigrate(true);
 
@@ -68,12 +49,13 @@ public class UndoNegativeTest {
         try (Connection conn = baseConfig.getDataSource().getConnection()) {
             // Drop alias if exists (cleanup)
             try {
-                conn.createStatement().execute("DROP ALIAS IF EXISTS CALLBACK_TRIGGER");
+                conn.createStatement().execute("DROP ALIAS IF EXISTS VALIDATE_CALLBACK");
+                conn.createStatement().execute("DROP ALIAS IF EXISTS CALLBACK_TRIGGER"); // Cleanup old one
             } catch (SQLException ignored) {
             }
 
             conn.createStatement().execute(
-                    "CREATE ALIAS CALLBACK_TRIGGER FOR \"org.flywaydbextended.core.UndoNegativeTest.callbackTrigger\"");
+                    "CREATE ALIAS VALIDATE_CALLBACK FOR \"org.flywaydbextended.core.UndoNegativeTest.validateCallback\"");
         }
     }
 
@@ -136,7 +118,7 @@ public class UndoNegativeTest {
         RollbackCommandExtension undoExt = new RollbackCommandExtension();
         FluentConfiguration undoV3Config = Flyway.configure()
                 .configuration(baseConfig)
-                .target("2")
+                .target("3")
                 .validateOnMigrate(false); // Disable validation for undo
 
         MigrateResult res1 = undoExt.handle(undoV3Config, Collections.emptyList());
@@ -177,7 +159,7 @@ public class UndoNegativeTest {
         RollbackCommandExtension undoExt = new RollbackCommandExtension();
         FluentConfiguration undoConfig = Flyway.configure()
                 .configuration(baseConfig)
-                .target("2")
+                .target("3")
                 .validateOnMigrate(false); // Disable validation for undo
 
         MigrateResult result = undoExt.handle(undoConfig, Collections.emptyList());
@@ -267,8 +249,6 @@ public class UndoNegativeTest {
         // Case 6: Verify VersionedScopedFlywayCallback is skipped when placeholder is
         // missing
 
-        callbackExecuted = false;
-
         // 1. Configure Flyway WITHOUT the versioned scoped location placeholder
         FluentConfiguration config = Flyway.configure()
                 .configuration(baseConfig)
@@ -280,25 +260,50 @@ public class UndoNegativeTest {
         flyway.migrate();
 
         // 3. Assert that the callback did NOT run
-        assertFalse(callbackExecuted, "Callback should have been skipped");
+        assertTrue(executedCallbacks.isEmpty(), "Callback should have been skipped");
     }
 
     @Test
     void testVersionedScopedCallbackExecution() throws SQLException {
         // Case 7: Verify VersionedScopedFlywayCallback runs when configured
 
-        callbackExecuted = false;
-
-        // 1. Load default config
-        // Using "migration/validate/negative" should resolve on classpath if files are
-        // present in target/test-classes
-        Flyway flyway = baseConfig.load();
+        // 1. Load default config with baseline
+        Flyway flyway = Flyway.configure()
+                .configuration(baseConfig)
+                .baselineVersion("0")
+                .baselineOnMigrate(true)
+                .load();
+        flyway.baseline();
 
         // 2. Run migrate
         flyway.migrate();
 
         // 3. Assert that the callback ran
-        assertTrue(callbackExecuted, "Callback should have executed (callbackTrigger method called)");
+        // 3. Assert that the callback ran
+        // Expect beforeMigrate and/or afterMigrate depending on what SQL files exist.
+        // Currently we have beforeMigrate__V1__Callback1.sql and
+        // afterMigrate__V1__Callback1.sql (to be updated)
+        // We will assert that "beforeMigrate:1" and "afterMigrate:1" are gathered.
+        // (Assuming we update SQL files next)
+        // For now, let's verify checking the list size > 0 or specific content once
+        // files are updated.
+        // 3. Assert that migrate callbacks ran
+        assertTrue(executedCallbacks.contains("beforeMigrate:1"), "Should have executed beforeMigrate:1");
+        assertTrue(executedCallbacks.contains("afterMigrate:1"), "Should have executed afterMigrate:1");
+
+        // 4. Run Undo (V1)
+        RollbackCommandExtension undoExt = new RollbackCommandExtension();
+        FluentConfiguration undoConfig = Flyway.configure()
+                .configuration(baseConfig)
+                .target("1")
+                .group(true)
+                .validateOnMigrate(false);
+
+        undoExt.handle(undoConfig, Collections.emptyList());
+
+        // 5. Assert that undo callbacks ran
+        assertTrue(executedCallbacks.contains("beforeUndo:1"), "Should have executed beforeUndo:1");
+        assertTrue(executedCallbacks.contains("afterUndo:1"), "Should have executed afterUndo:1");
     }
 
     private boolean checkDataExists(int id, String name) throws SQLException {

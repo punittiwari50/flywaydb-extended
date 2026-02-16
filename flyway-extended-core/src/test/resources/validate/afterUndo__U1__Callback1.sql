@@ -1,0 +1,1 @@
+SELECT VALIDATE_CALLBACK('afterUndo', '1');

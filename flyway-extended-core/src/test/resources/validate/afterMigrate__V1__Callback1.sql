@@ -1,0 +1,1 @@
+SELECT VALIDATE_CALLBACK('afterMigrate', '1');

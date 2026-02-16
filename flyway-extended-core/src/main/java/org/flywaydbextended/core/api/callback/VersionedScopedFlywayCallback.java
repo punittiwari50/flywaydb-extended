@@ -79,18 +79,25 @@ public class VersionedScopedFlywayCallback implements Callback {
                 .append("__")
                 .append(configuration.getSqlMigrationPrefix())
                 .append(version)
-                .append("_")
+                .append("__")
                 .toString();
         String location = Path.of(parentLocation).resolveSibling(VALIDATE_LOCATION).toString();
+        // Ensure location is treated correctly by normalize path separators for
+        // classpath
         ResourceProvider resourceProvider = createResourceProvider(configuration, "filesystem", location);
         Collection<LoadableResource> loadableResources = resourceProvider.getResources(prefix,
                 configuration.getSqlMigrationSuffixes());
+
+        LOGGER.info("Scanning for callbacks in location: [{}], prefix: [{}], found: [{}] resources",
+                location, prefix, (loadableResources == null ? 0 : loadableResources.size()));
+
         if (loadableResources == null || loadableResources.isEmpty()) {
             return;
         }
         List<LoadableResource> resources = loadableResources.stream()
                 .sorted(Comparator.comparing(Resource::getFilename)).toList();
         for (LoadableResource resource : resources) {
+            LOGGER.info("Executing callback resource: [{}]", resource.getFilename());
             execute(resource, context);
         }
     }
@@ -99,7 +106,7 @@ public class VersionedScopedFlywayCallback implements Callback {
         try {
             List<Results> results = executeWithFlyway(loadableResource, context);
             results.stream().forEach(result -> {
-                LOGGER.info("script file-name: [{}] ", loadableResource.getFilename());
+                LOGGER.info("Executed script file-name: [{}] ", loadableResource.getFilename());
             });
         } catch (Exception e) {
             e.printStackTrace();

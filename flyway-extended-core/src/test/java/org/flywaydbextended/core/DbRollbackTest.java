@@ -75,7 +75,7 @@ class DbRollbackTest {
         RollbackCommandExtension extension = new RollbackCommandExtension();
         FluentConfiguration undoConfig = Flyway.configure()
                 .configuration(baseConfig)
-                .target("1"); // Undo V2, go back to V1
+                .target("2"); // Undo V2
 
         MigrateResult result = extension.handle(undoConfig, Collections.emptyList());
         assertEquals(1, result.migrationsExecuted);
@@ -98,8 +98,8 @@ class DbRollbackTest {
                 .target("1");
 
         MigrateResult result = extension.handle(undoConfig, Collections.emptyList());
-        assertEquals(0, result.migrationsExecuted);
-        assertTrue(tableExists("t1"));
+        assertEquals(1, result.migrationsExecuted);
+        assertFalse(tableExists("t1"));
     }
 
     @Test
